@@ -15,11 +15,11 @@ td {
 }
 
 
-.flash {
-    animation: flash 1s infinite;
+.mqtt-flash {
+    animation: flash-animation 1s infinite;
   }
   
-  @keyframes flash {
+  @keyframes flash-animation {
     0% { opacity: 1; }
     50% { opacity: 0.3; }
     100% { opacity: 1; }

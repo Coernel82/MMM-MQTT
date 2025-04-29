@@ -202,7 +202,7 @@ Module.register("MMM-MQTT", {
   },
 
   getDom: function () {
-    return this.config.bigMode 
+    return this.config.bigMode
       ? this.getWrapperBigMode()
       : this.getWrapperListMode();
   },
@@ -246,9 +246,21 @@ Module.register("MMM-MQTT", {
             sub.flashValue.operator,
             sub.flashValue.value
           );
-          if (conditionMet) valueWrapper.classList.add("flash");
+          if (conditionMet) {
+            valueWrapper.classList.add("mqtt-flash");
+            // Apply custom color if specified
+            if (sub.flashValue.flashColor) {
+              valueWrapper.style.color = sub.flashValue.flashColor;
+              valueWrapper.style.animation = "none"; // Force reflow
+              void valueWrapper.offsetWidth; // Trigger reflow
+              valueWrapper.style.animation = "";
+            }
+          } else {
+            valueWrapper.classList.remove("mqtt-flash");
+            // Reset to original color when not flashing
+            valueWrapper.style.color = tooOld ? valueWrapper.style.color : colors.value;
+          }
         }
-
         subWrapper.appendChild(valueWrapper);
 
         // Suffix

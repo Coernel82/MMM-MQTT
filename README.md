@@ -89,7 +89,7 @@ Here is an example configuration with description. Put it in the `MagicMirror/co
               enabled: true,            // Enable/disable alarm
               operator: '<',           // Comparison operator: '<', '>', '<=', '>=', '=='
               value: 5,                // Threshold value to trigger alarm
-              audio: 'alert.mp3',       // Path to audio file (relative to module directory)
+              audio: 'alarm.wav',       // Path to audio file (relative to module directory) - alarm.wav preinstalled!
               repeat: false            // Whether to repeat alarm while condition is true
             }
           },

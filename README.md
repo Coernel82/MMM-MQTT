@@ -69,14 +69,29 @@ Here is an example configuration with description. Put it in the `MagicMirror/co
             decimals: 1,
             decimalSignInMessage: ",", // If the message decimal point is not "."
             sortOrder: 20,
-            maxAgeSeconds: 60
+            maxAgeSeconds: 60,
+            // Optional: Flash the value when condition is met
+            flashValue: {
+              enabled: true,            // Enable/disable flashing
+              operator: '>',           // Comparison operator: '<', '>', '<=', '>=', '=='
+              value: 70,               // Threshold value to trigger flashing
+              flashColor: '#ff0000'    // Optional: Color to flash (default: current color)
+            }
           },
           {
             topic: 'smoky/1/inside/smoke',
             label: 'Røyk',
             sortOrder: 30,
             divide: 10, // Divide numeric values. Alternatively use `multiply`.
-            maxAgeSeconds: 60
+            maxAgeSeconds: 60,
+            // Optional: Play an alarm sound when condition is met
+            playAlarm: {
+              enabled: true,            // Enable/disable alarm
+              operator: '<',           // Comparison operator: '<', '>', '<=', '>=', '=='
+              value: 5,                // Threshold value to trigger alarm
+              audio: 'alert.mp3',       // Path to audio file (relative to module directory)
+              repeat: false            // Whether to repeat alarm while condition is true
+            }
           },
           {
             topic: 'guests',

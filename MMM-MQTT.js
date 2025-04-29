@@ -24,7 +24,6 @@ Module.register("MMM-MQTT", {
   start: function () {
     Log.info(this.name + " started.");
     this.subscriptions = this.makeSubscriptions(this.config.mqttServers);
-
     this.openMqttConnection();
     setInterval(() => {
       this.updateDom(100);
@@ -57,14 +56,31 @@ Module.register("MMM-MQTT", {
       value: "",
       time: Date.now(),
       maxAgeSeconds: sub.maxAgeSeconds,
-      sortOrder: sub.sortOrder || 10, // TODO: Fix sort order i * 100 + j
+      sortOrder: sub.sortOrder || 10,
       colors: sub.colors,
       conversions: sub.conversions,
       multiply: sub.multiply,
       divide: sub.divide,
       broadcast: sub.broadcast,
-      hidden: sub.hidden
+      hidden: sub.hidden,
+      playAlarm: sub.playAlarm || { enabled: false },
+      flashValue: sub.flashValue || { enabled: false },
+      alarmTriggered: false
     };
+  },
+
+  checkCondition: function (value, operator, threshold) {
+    const numValue = Number(value);
+    const numThreshold = Number(threshold);
+    if (isNaN(numValue) || isNaN(numThreshold)) return false;
+    switch (operator) {
+      case '<': return numValue < numThreshold;
+      case '>': return numValue > numThreshold;
+      case '<=': return numValue <= numThreshold;
+      case '>=': return numValue >= numThreshold;
+      case '==': return numValue === numThreshold;
+      default: return false;
+    }
   },
 
   openMqttConnection: function () {
@@ -72,39 +88,33 @@ Module.register("MMM-MQTT", {
   },
 
   setSubscriptionValue: function (subscriptions, payload, useWildcards) {
-    const savedValues = new Map(Object.entries(JSON.parse(payload)))
+    const savedValues = new Map(Object.entries(JSON.parse(payload)));
     for (let i = 0; i < subscriptions.length; i++) {
-      sub = subscriptions[i];
-      const savedValue = savedValues.get(sub.serverKey + "-" + sub.topic)
+      let sub = subscriptions[i];
+      const savedValue = savedValues.get(sub.serverKey + "-" + sub.topic);
       if (savedValue &&
-        (sub.serverKey == savedValue.serverKey && useWildcards
+        (sub.serverKey === savedValue.serverKey && useWildcards
           ? topicsMatch(sub.topic, savedValue.topic)
-          : sub.topic == savedValue.topic)
+          : sub.topic === savedValue.topic)
       ) {
-        var value = savedValue.value;
+        let value = savedValue.value;
 
         if (sub.broadcast) {
           this.sendNotification("MQTT_MESSAGE_RECEIVED", savedValue);
         }
 
-        // Extract value if JSON Pointer is configured
         if (sub.jsonpointer) {
           value = get(JSON.parse(value), sub.jsonpointer);
         }
 
-        // Convert decimal point
         if (sub.decimalSignInMessage) {
           value = value.replace(sub.decimalSignInMessage, ".");
         }
 
-        // Multiply or divide
         value = this.multiply(sub, value);
 
-        // Round if decimals is configured
-        if (isNaN(sub.decimals) == false) {
-          if (isNaN(value) == false) {
-            value = Number(value).toFixed(sub.decimals);
-          }
+        if (!isNaN(sub.decimals)) {
+          value = isNaN(value) ? value : Number(value).toFixed(sub.decimals);
         }
         sub.value = value;
         sub.time = savedValue.time;
@@ -122,6 +132,27 @@ Module.register("MMM-MQTT", {
           payload,
           this.config.useWildcards
         );
+
+        // Check playAlarm conditions
+        this.subscriptions.forEach((sub) => {
+          if (sub.playAlarm.enabled) {
+            const conditionMet = this.checkCondition(
+              sub.value,
+              sub.playAlarm.operator,
+              sub.playAlarm.value
+            );
+            if (conditionMet && !sub.alarmTriggered) {
+              const audio = new Audio(sub.playAlarm.audio);
+              audio.play().catch((error) => {
+                Log.error("Failed to play alarm audio:", error);
+              });
+              sub.alarmTriggered = true;
+            } else if (!conditionMet) {
+              sub.alarmTriggered = false;
+            }
+          }
+        });
+
         this.updateDom();
       } else {
         Log.info(this.name + ": MQTT_PAYLOAD - No payload");
@@ -140,44 +171,30 @@ Module.register("MMM-MQTT", {
   },
 
   getColors: function (sub) {
-    if (!sub.colors || sub.colors.length == 0) {
-      return {};
-    }
-
+    if (!sub.colors || sub.colors.length === 0) return {};
     let colors;
     if (!Array.isArray(sub.colors)) {
-        colors = sub.colors
+      colors = sub.colors;
     } else {
-        for (i = 0; i < sub.colors.length; i++) {
-            colors = sub.colors[i];
-            if (sub.value < sub.colors[i].upTo) {
-                break;
-            }
-        }
+      for (let i = 0; i < sub.colors.length; i++) {
+        colors = sub.colors[i];
+        if (sub.value < sub.colors[i].upTo) break;
+      }
     }
-  return colors;
+    return colors;
   },
 
   multiply: function (sub, value) {
-    if (!sub.multiply && !sub.divide) {
-      return value;
-    }
-    if (!value) {
-      return value;
-    }
-    if (isNaN(value)) {
-      return value;
-    }
+    if (!sub.multiply && !sub.divide) return value;
+    if (!value || isNaN(value)) return value;
     let res = (+value * (sub.multiply || 1)) / (sub.divide || 1);
-    return isNaN(res) ? value : "" + res;
+    return isNaN(res) ? value : res.toString();
   },
 
   convertValue: function (sub) {
-    if (!sub.conversions || sub.conversions.length == 0) {
-      return sub.value;
-    }
-    for (i = 0; i < sub.conversions.length; i++) {
-      if (("" + sub.value).trim() == ("" + sub.conversions[i].from).trim()) {
+    if (!sub.conversions || sub.conversions.length === 0) return sub.value;
+    for (let i = 0; i < sub.conversions.length; i++) {
+      if (sub.value.toString().trim() === sub.conversions[i].from.toString().trim()) {
         return sub.conversions[i].to;
       }
     }
@@ -185,159 +202,128 @@ Module.register("MMM-MQTT", {
   },
 
   getDom: function () {
-    if (this.config.bigMode) {
-      return this.getWrapperBigMode(
-        document,
-        this.subscriptions,
-        this.loaded,
-        this.translate,
-        this.name,
-        this.getColors,
-        this.isValueTooOld,
-        this.convertValue
-      );
-    } else {
-      return this.getWrapperListMode(
-        document,
-        this.subscriptions,
-        this.loaded,
-        this.translate,
-        this.name,
-        this.getColors,
-        this.isValueTooOld,
-        this.convertValue
-      );
-    }
+    return this.config.bigMode 
+      ? this.getWrapperBigMode()
+      : this.getWrapperListMode();
   },
 
-  getWrapperListMode(
-    doc,
-    subscriptions,
-    loaded,
-    translate,
-    name,
-    getColors,
-    isValueTooOld,
-    convertValue,
-  ) {
+  getWrapperListMode: function () {
     const wrapper = document.createElement("table");
     wrapper.className = "small";
 
-    if (subscriptions.length === 0) {
-      wrapper.innerHTML = loaded ? translate("EMPTY") : translate("LOADING");
+    if (this.subscriptions.length === 0) {
+      wrapper.innerHTML = this.loaded ? this.translate("EMPTY") : this.translate("LOADING");
       wrapper.className = "small dimmed";
-      this.log(name + ": No values");
       return wrapper;
     }
 
-
-    subscriptions
+    this.subscriptions
       .filter((s) => !s.hidden)
-      .sort((a, b) => {
-        return a.sortOrder - b.sortOrder;
-      })
-      .forEach(function (sub) {
-
-        var subWrapper = doc.createElement("tr");
-        let colors = getColors(sub);
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .forEach((sub) => {
+        const subWrapper = document.createElement("tr");
+        const colors = this.getColors(sub);
+        const tooOld = this.isValueTooOld(sub.maxAgeSeconds, sub.time);
 
         // Label
-        var labelWrapper = doc.createElement("td");
+        const labelWrapper = document.createElement("td");
         labelWrapper.innerHTML = sub.label;
         labelWrapper.className = "align-left mqtt-label";
         labelWrapper.style.color = colors.label;
         subWrapper.appendChild(labelWrapper);
 
         // Value
-        tooOld = isValueTooOld(sub.maxAgeSeconds, sub.time);
-        var valueWrapper = doc.createElement("td");
-        var setValueinnerHTML = convertValue(sub);
-        valueWrapper.innerHTML = setValueinnerHTML;
-        valueWrapper.className =
-          "align-right medium mqtt-value " + (tooOld ? "dimmed" : "bright");
-        valueWrapper.style.color = tooOld
-          ? valueWrapper.style.color
-          : colors.value;
+        const valueWrapper = document.createElement("td");
+        const value = this.convertValue(sub);
+        valueWrapper.innerHTML = value;
+        valueWrapper.className = `align-right medium mqtt-value ${tooOld ? "dimmed" : "bright"}`;
+        valueWrapper.style.color = tooOld ? valueWrapper.style.color : colors.value;
+
+        // Flash condition
+        if (sub.flashValue.enabled) {
+          const conditionMet = this.checkCondition(
+            sub.value,
+            sub.flashValue.operator,
+            sub.flashValue.value
+          );
+          if (conditionMet) valueWrapper.classList.add("flash");
+        }
+
         subWrapper.appendChild(valueWrapper);
 
         // Suffix
-        var suffixWrapper = doc.createElement("td");
+        const suffixWrapper = document.createElement("td");
         suffixWrapper.innerHTML = sub.suffix;
         suffixWrapper.className = "align-left mqtt-suffix";
+        suffixWrapper.style.color = colors.suffix;
         subWrapper.appendChild(suffixWrapper);
-        subWrapper.style.color = colors.suffix;
-        if (setValueinnerHTML !== "#DISABLED#") wrapper.appendChild(subWrapper);
+
+        if (value !== "#DISABLED#") wrapper.appendChild(subWrapper);
       });
+
     return wrapper;
   },
 
-  getWrapperBigMode(
-    doc,
-    subscriptions,
-    loaded,
-    translate,
-    name,
-    getColors,
-    isValueTooOld,
-    convertValue,
-  ) {
+  getWrapperBigMode: function () {
     const wrapper = document.createElement("div");
     wrapper.className = "small";
 
-    if (subscriptions.length === 0) {
-      wrapper.innerHTML = loaded ? translate("EMPTY") : translate("LOADING");
+    if (this.subscriptions.length === 0) {
+      wrapper.innerHTML = this.loaded ? this.translate("EMPTY") : this.translate("LOADING");
       wrapper.className = "small dimmed";
-      this.log(name + ": No values");
       return wrapper;
     }
 
-
-    subscriptions
+    this.subscriptions
       .filter((s) => !s.hidden)
-      .sort((a, b) => {
-        return a.sortOrder - b.sortOrder;
-      })
-      .forEach(function (sub) {
-
-        var subWrapper = doc.createElement("div");
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .forEach((sub) => {
+        const subWrapper = document.createElement("div");
         subWrapper.className = "mqtt-big";
-        let colors = getColors(sub);
+        const colors = this.getColors(sub);
+        const tooOld = this.isValueTooOld(sub.maxAgeSeconds, sub.time);
 
         // Label
-        var labelWrapper = doc.createElement("div");
+        const labelWrapper = document.createElement("div");
         labelWrapper.innerHTML = sub.label;
         labelWrapper.className = "align-center mqtt-big-label";
-        labelWrapper.setAttribute("align", "left")
         labelWrapper.style.color = colors.label;
         subWrapper.appendChild(labelWrapper);
 
-        // Value row
-        var valueRowWrapper = doc.createElement("div");
+        // Value Row
+        const valueRowWrapper = document.createElement("div");
         valueRowWrapper.className = "mqtt-big-value-row";
-        valueRowWrapper.setAttribute("align", "center")
-        subWrapper.appendChild(valueRowWrapper);
 
         // Value
-        tooOld = isValueTooOld(sub.maxAgeSeconds, sub.time);
-        var valueWrapper = doc.createElement("span");
-        var setValueinnerHTML = convertValue(sub);
-        valueWrapper.innerHTML = setValueinnerHTML;
-        valueWrapper.className =
-          "large mqtt-big-value " + (tooOld ? "dimmed" : "bright");
-        valueWrapper.style.color = tooOld
-          ? valueWrapper.style.color
-          : colors.value;
-          valueRowWrapper.appendChild(valueWrapper);
+        const valueWrapper = document.createElement("span");
+        const value = this.convertValue(sub);
+        valueWrapper.innerHTML = value;
+        valueWrapper.className = `large mqtt-big-value ${tooOld ? "dimmed" : "bright"}`;
+        valueWrapper.style.color = tooOld ? valueWrapper.style.color : colors.value;
+
+        // Flash condition
+        if (sub.flashValue.enabled) {
+          const conditionMet = this.checkCondition(
+            sub.value,
+            sub.flashValue.operator,
+            sub.flashValue.value
+          );
+          if (conditionMet) valueWrapper.classList.add("flash");
+        }
+
+        valueRowWrapper.appendChild(valueWrapper);
 
         // Suffix
-        var suffixWrapper = doc.createElement("span");
+        const suffixWrapper = document.createElement("span");
         suffixWrapper.innerHTML = sub.suffix;
-        suffixWrapper.className = " medium mqtt-big-suffix";
+        suffixWrapper.className = "medium mqtt-big-suffix";
+        suffixWrapper.style.color = colors.suffix;
         valueRowWrapper.appendChild(suffixWrapper);
-        subWrapper.style.color = colors.suffix;
-        if (setValueinnerHTML !== "#DISABLED#") wrapper.appendChild(subWrapper);
 
+        subWrapper.appendChild(valueRowWrapper);
+        if (value !== "#DISABLED#") wrapper.appendChild(subWrapper);
       });
+
     return wrapper;
   }
 });

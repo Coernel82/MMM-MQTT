@@ -21,17 +21,17 @@ Module.register("MMM-MQTT", {
     bigMode: false
   },
 
-  audio: null, // define audio to prelaod the sound
+/*   audio: null, // define audio to prelaod the sound
   subscriptions: [], // initialize subscriptions as an empty array
-
+ */
   start: function () {
     Log.info(this.name + " started.");
 
-    // Preload audio if not already loaded
+/*     // Preload audio if not already loaded
     if (!sub.playAlarm._audio) {
       sub.playAlarm._audio = new Audio('/modules/MMM-MQTT/sounds/alarm.wav'); // TODO: hardcoded for debugging / testing
       sub.playAlarm._audio.load();
-    }
+    } */
 
     this.subscriptions = this.makeSubscriptions(this.config.mqttServers);
     this.openMqttConnection();

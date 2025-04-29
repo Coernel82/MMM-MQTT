@@ -21,8 +21,17 @@ Module.register("MMM-MQTT", {
     bigMode: false
   },
 
+  audio: null, // define audio to prelaod the sound
+
   start: function () {
     Log.info(this.name + " started.");
+
+    // Preload audio if not already loaded
+    if (!sub.playAlarm._audio) {
+      sub.playAlarm._audio = new Audio('/modules/MMM-MQTT/sounds/alarm.wav');
+      sub.playAlarm._audio.load();
+    }
+
     this.subscriptions = this.makeSubscriptions(this.config.mqttServers);
     this.openMqttConnection();
     setInterval(() => {
@@ -142,7 +151,7 @@ Module.register("MMM-MQTT", {
               sub.playAlarm.value
             );
             if (conditionMet && !sub.alarmTriggered) {
-              const audio = new Audio(sub.playAlarm.audio);
+              const audio = sub.playAlarm._audio;
               audio.play().catch((error) => {
                 Log.error("Failed to play alarm audio:", error);
               });

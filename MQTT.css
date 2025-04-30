@@ -24,3 +24,12 @@ td {
     50% { opacity: 0.3; }
     100% { opacity: 1; }
   }
+
+  .mqtt-value {
+    cursor: pointer;
+    transition: opacity 0.3s ease;
+  }
+  
+  .mqtt-value:active {
+    opacity: 0.7;
+  }

@@ -85,7 +85,9 @@ Module.register("MMM-MQTT", {
       hidden: sub.hidden,
       flashValue: sub.flashValue || { enabled: false },
       playAlarm: playAlarmConfig,
-      alarmTriggered: false
+      alarmTriggered: false,
+      flashDismissed: false,
+      soundDismissed: false
     };
   },
 
@@ -165,6 +167,8 @@ Module.register("MMM-MQTT", {
     
             if (conditionMet) {
               if (!sub.alarmTriggered) {
+                sub.flashDismissed = false;
+                sub.soundDismissed = false;
                 audio.play().catch((error) => {
                   Log.error("Failed to play alarm audio:", error);
                 });
@@ -238,6 +242,7 @@ Module.register("MMM-MQTT", {
     const wrapper = document.createElement("table");
     wrapper.className = "small";
 
+
     if (this.subscriptions.length === 0) {
       wrapper.innerHTML = this.loaded ? this.translate("EMPTY") : this.translate("LOADING");
       wrapper.className = "small dimmed";
@@ -265,6 +270,7 @@ Module.register("MMM-MQTT", {
         valueWrapper.innerHTML = value;
         valueWrapper.className = `align-right medium mqtt-value ${tooOld ? "dimmed" : "bright"}`;
         valueWrapper.style.color = tooOld ? valueWrapper.style.color : colors.value;
+        valueWrapper.addEventListener("click", () => this.handleAlarmDismiss(sub));
 
         // Flash condition
         if (sub.flashValue.enabled) {
@@ -339,9 +345,11 @@ Module.register("MMM-MQTT", {
         valueWrapper.innerHTML = value;
         valueWrapper.className = `large mqtt-big-value ${tooOld ? "dimmed" : "bright"}`;
         valueWrapper.style.color = tooOld ? valueWrapper.style.color : colors.value;
+        valueWrapper.addEventListener("click", () => this.handleAlarmDismiss(sub));
+        
 
         // Flash condition
-        if (sub.flashValue.enabled) {
+        if (sub.flashValue.enabled && !sub.flashDismissed) {
           const conditionMet = this.checkCondition(
             sub.value,
             sub.flashValue.operator,
@@ -364,5 +372,38 @@ Module.register("MMM-MQTT", {
       });
 
     return wrapper;
-  }
+  },
+
+  handleAlarmDismiss: function(sub) {
+    // Check current dismissal state
+    if (sub.flashValue.enabled && sub.playAlarm.enabled) {
+      if (!sub.flashDismissed && !sub.soundDismissed) {
+        // First click - dismiss flash
+        sub.flashDismissed = true;
+      } else {
+        // Second click - dismiss sound
+        sub.soundDismissed = true;
+        const audio = this.audioElements.get(sub.topic);
+        if (audio) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
+      }
+    } else if (sub.flashValue.enabled) {
+      // Single click - dismiss flash
+      sub.flashDismissed = true;
+    } else if (sub.playAlarm.enabled) {
+      // Single click - dismiss sound
+      sub.soundDismissed = true;
+      const audio = this.audioElements.get(sub.topic);
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    }
+    
+    this.updateDom();
+  },
+
+
 });

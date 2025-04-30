@@ -27,12 +27,6 @@ Module.register("MMM-MQTT", {
   start: function () {
     Log.info(this.name + " started.");
 
-/*     // Preload audio if not already loaded
-    if (!sub.playAlarm._audio) {
-      sub.playAlarm._audio = new Audio('/modules/MMM-MQTT/sounds/alarm.wav'); // TODO: hardcoded for debugging / testing
-      sub.playAlarm._audio.load();
-    } */
-
     this.subscriptions = this.makeSubscriptions(this.config.mqttServers);
     this.openMqttConnection();
     setInterval(() => {
@@ -55,6 +49,22 @@ Module.register("MMM-MQTT", {
   },
 
   makeSubscription: function (key, sub) {
+
+    let playAlarmConfig = { enabled: false };
+    if (sub.playAlarm) {
+      playAlarmConfig = {
+        enabled: sub.playAlarm.enabled,
+        operator: sub.playAlarm.operator,
+        value: sub.playAlarm.value,
+        audioPath: sub.playAlarm.audio,
+        _audio: sub.playAlarm.audio ? new Audio(sub.playAlarm.audio) : null,
+        repeat: sub.playAlarm.repeat || false
+      };
+      if (playAlarmConfig._audio) {
+        playAlarmConfig._audio.loop = playAlarmConfig.repeat;
+      }
+    }
+
     return {
       serverKey: key,
       label: sub.label,
@@ -73,8 +83,8 @@ Module.register("MMM-MQTT", {
       divide: sub.divide,
       broadcast: sub.broadcast,
       hidden: sub.hidden,
-      playAlarm: sub.playAlarm || { enabled: false },
       flashValue: sub.flashValue || { enabled: false },
+      playAlarm: playAlarmConfig,
       alarmTriggered: false
     };
   },
@@ -145,20 +155,27 @@ Module.register("MMM-MQTT", {
 
         // Check playAlarm conditions
         this.subscriptions.forEach((sub) => {
-          if (sub.playAlarm.enabled) {
+          if (sub.playAlarm.enabled && sub.playAlarm._audio) {
             const conditionMet = this.checkCondition(
               sub.value,
               sub.playAlarm.operator,
               sub.playAlarm.value
             );
-            if (conditionMet && !sub.alarmTriggered) {
-              const audio = sub.playAlarm._audio;
-              audio.play().catch((error) => {
-                Log.error("Failed to play alarm audio:", error);
-              });
-              sub.alarmTriggered = true;
-            } else if (!conditionMet) {
-              sub.alarmTriggered = false;
+            const audio = sub.playAlarm._audio;
+    
+            if (conditionMet) {
+              if (!sub.alarmTriggered) {
+                audio.play().catch((error) => {
+                  Log.error("Failed to play alarm audio:", error);
+                });
+                sub.alarmTriggered = true;
+              }
+            } else {
+              if (sub.alarmTriggered) {
+                audio.pause();
+                audio.currentTime = 0;
+                sub.alarmTriggered = false;
+              }
             }
           }
         });

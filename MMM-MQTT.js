@@ -76,7 +76,7 @@ Module.register("MMM-MQTT", {
       value: "",
       time: Date.now(),
       maxAgeSeconds: sub.maxAgeSeconds,
-      sortOrder: sub.sortOrder || 10,
+      sortOrder: sub.sortOrder || 10, // TODO: Fix sort order i * 100 + j
       colors: sub.colors,
       conversions: sub.conversions,
       multiply: sub.multiply,
@@ -125,16 +125,20 @@ Module.register("MMM-MQTT", {
           this.sendNotification("MQTT_MESSAGE_RECEIVED", savedValue);
         }
 
+        // Extract value from JSON pointer if configured
         if (sub.jsonpointer) {
           value = get(JSON.parse(value), sub.jsonpointer);
         }
 
+        // Convert decimal point
         if (sub.decimalSignInMessage) {
           value = value.replace(sub.decimalSignInMessage, ".");
         }
 
+        // Multiply or divide
         value = this.multiply(sub, value);
 
+        // Round decimals if configured
         if (!isNaN(sub.decimals)) {
           value = isNaN(value) ? value : Number(value).toFixed(sub.decimals);
         }

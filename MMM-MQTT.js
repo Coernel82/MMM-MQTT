@@ -375,31 +375,31 @@ Module.register("MMM-MQTT", {
   },
 
   handleAlarmDismiss: function(sub) {
-    // Check current dismissal state
+    // Check current dismissal state: first mute sound, then stop flash
     if (sub.flashValue.enabled && sub.playAlarm.enabled) {
-      if (!sub.flashDismissed && !sub.soundDismissed) {
-        // First click - dismiss flash
-        sub.flashDismissed = true;
-      } else {
-        // Second click - dismiss sound
+      if (!sub.soundDismissed) {
+        // First click - dismiss sound
         sub.soundDismissed = true;
-        const audio = this.audioElements.get(sub.topic);
+        const audio = sub.playAlarm._audio;
         if (audio) {
           audio.pause();
           audio.currentTime = 0;
         }
+      } else if (!sub.flashDismissed) {
+        // Second click - dismiss flash
+        sub.flashDismissed = true;
       }
-    } else if (sub.flashValue.enabled) {
-      // Single click - dismiss flash
-      sub.flashDismissed = true;
     } else if (sub.playAlarm.enabled) {
       // Single click - dismiss sound
       sub.soundDismissed = true;
-      const audio = this.audioElements.get(sub.topic);
+      const audio = sub.playAlarm._audio;
       if (audio) {
         audio.pause();
         audio.currentTime = 0;
       }
+    } else if (sub.flashValue.enabled) {
+      // Single click - dismiss flash
+      sub.flashDismissed = true;
     }
     
     this.updateDom();

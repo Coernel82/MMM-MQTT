@@ -273,7 +273,7 @@ Module.register("MMM-MQTT", {
         valueWrapper.addEventListener("click", () => this.handleAlarmDismiss(sub));
 
         // Flash condition
-        if (sub.flashValue.enabled) {
+        if (sub.flashValue.enabled && !sub.flashDismissed) {
           const conditionMet = this.checkCondition(
             sub.value,
             sub.flashValue.operator,
@@ -293,6 +293,10 @@ Module.register("MMM-MQTT", {
             // Reset to original color when not flashing
             valueWrapper.style.color = tooOld ? valueWrapper.style.color : colors.value;
           }
+        } else {
+          // Remove flashing when dismissed or disabled
+          valueWrapper.classList.remove("mqtt-flash");
+          valueWrapper.style.color = tooOld ? valueWrapper.style.color : colors.value;
         }
         subWrapper.appendChild(valueWrapper);
 

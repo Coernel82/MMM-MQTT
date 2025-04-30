@@ -6,7 +6,7 @@ Module for [MagicMirror](https://github.com/MichMich/MagicMirror/) showing the p
 
 ![Screenshot](doc/MQTT.png)
 
-## Installasjon
+## Installation
 
 Go to `MagicMirror/modules` and write
 
@@ -89,7 +89,7 @@ Here is an example configuration with description. Put it in the `MagicMirror/co
               enabled: true,            // Enable/disable alarm
               operator: '<',           // Comparison operator: '<', '>', '<=', '>=', '=='
               value: 5,                // Threshold value to trigger alarm
-              audio: 'alarm.wav',       // Path to audio file (relative to module directory) - alarm.wav preinstalled!
+              audio: 'modules/MMM-MQTT/sounds/alarm.wav',       // you can change the file in the sounds directory to play another sound!
               repeat: false            // Whether to repeat alarm while condition is true
             }
           },
@@ -120,6 +120,9 @@ Here is an example configuration with description. Put it in the `MagicMirror/co
 ```
 
 mqttServers is an array, so you can add multiple servers to the same config. You can also use the module in multiple places on the mirror/screen.
+
+### Dismissable alerts
+when you have the flashing and / or sound alert enabled you can disable them with up to two clicks / touches: first sound gets disabled, then the flashing.
 
 ### JSON Data
 
@@ -203,7 +206,7 @@ colors: humidityColors;
 
 ## Styling
 
-General styling can be done in the `MQTT.css` file. The table header can be styled using locator `#module_3_MMM-MQTT > header`. The column text can be styled using the following classes:
+General styling can be done in the `/Magicmirror/css/custom.css` file. The table header can be styled using locator `#module_3_MMM-MQTT > header`. The column text can be styled using the following classes:
 
 ```css
 .mqtt-label {
@@ -212,7 +215,48 @@ General styling can be done in the `MQTT.css` file. The table header can be styl
 }
 .mqtt-suffix {
 }
+
+/* default module styling: */
+.border_bottom td{
+    border-bottom: 1pt solid #444444;
+}
+
+.border_top td{
+    border-top: 1pt solid #444444;
+}
+
+td {
+    padding-right: 5px;
+}
+
+.mqtt-big {
+    margin-top: 15px;
+}
 ```
+
+## Styling of the alarm
+You can overwrite those values to your liking:
+```css
+.mqtt-flash {
+    animation: flash-animation 1s infinite;
+  }
+  
+  @keyframes flash-animation {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+  }
+
+  .mqtt-value {
+    cursor: pointer;
+    transition: opacity 0.3s ease;
+  }
+  
+  .mqtt-value:active {
+    opacity: 0.7;
+  }
+  ```
+
 
 ## Collaborate
 
@@ -225,11 +269,5 @@ Thanks to [Jan Lehnardt](https://github.com/janl/node-jsonpointer) for the jsonp
 The topic_match code is also copied
 
 ## TO DO
-
-Create a timeout, so values are deleted if they are not refreshed. May be faded out...
-
-Create a threshold so a value is flashing if outside threshold.
-
-Make a filter so a row is displayed only if a value satisfies certain criteria. To be used f.eks. when a battery level is too low.
-
-Make a sound when a specific value changes.
+- [ ] Create a timeout, so values are deleted if they are not refreshed. Consider fading them out.
+- [ ] Make a filter so a row is displayed only if a value satisfies certain criteria. This can be used, for example, to display a row when a battery level is too low.
